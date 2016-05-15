@@ -1,5 +1,21 @@
+# -*- coding: utf-8 -*-
+
 import numpy as np
 import cv2
+
+
+face_cascade = cv2.CascadeClassifier('haarcascades/haarcascade_frontalface_alt.xml')
+eye_cascade = cv2.CascadeClassifier('haarcascades/haarcascade_eye.xml')
+mouth_cascade = cv2.CascadeClassifier('haarcascades/haarcascade_mcs_mouth.xml')
+nose_cascade = cv2.CascadeClassifier('haarcascades/haarcascade_mcs_nose.xml')
+
+COLOR_FACE = 255, 0, 0
+COLOR_EYE = 0, 255, 0
+COLOR_NOSE = 0, 255, 255
+COLOR_MONTH = 0, 0, 255
+
+FEATURE_SCALE = 1.3
+FEATURE_MIN_NEIGHBORS = 10
 
 
 class Rectangle(object):
@@ -18,7 +34,7 @@ class Rectangle(object):
     def point2(self):
         return self.x2, self.y2
 
-    def draw(self, image, color, thickness=2):
+    def draw_rect(self, image, color, thickness=2):
         cv2.rectangle(image, self.point1, self.point2, color, thickness)
 
     def slice_image(self, image):
@@ -29,56 +45,54 @@ class Person(object):
     def __init__(self):
         self.face = None
         self.eyes = []
-        self.noses = None
-        self.mouths = None
+        self.noses = []
+        self.mouths = []
+
+    def draw_rects(self, image):
+        self.face.draw_rect(image, COLOR_FACE)
+
+        for eye_rect in self.eyes:
+            eye_rect.draw_rect(image, COLOR_EYE)
+
+        for nose_rect in self.noses:
+            nose_rect.draw_rect(image, COLOR_NOSE)
+
+        for mouth_rect in self.mouths:
+            mouth_rect.draw_rect(image, COLOR_MONTH)
 
 
-face_cascade = cv2.CascadeClassifier('haarcascades/haarcascade_frontalface_alt.xml')
-eye_cascade = cv2.CascadeClassifier('haarcascades/haarcascade_eye.xml')
-mouth_cascade = cv2.CascadeClassifier('haarcascades/haarcascade_mcs_mouth.xml')
-nose_cascade = cv2.CascadeClassifier('haarcascades/haarcascade_mcs_nose.xml')
+def detect_feature(cascade, image):
+    result = []
+    feature_list = cascade.detectMultiScale(image, FEATURE_SCALE, FEATURE_MIN_NEIGHBORS)
 
-COLOR_FACE = 255, 0, 0
-COLOR_EYE = 0, 255, 0
-COLOR_MONTH = 0, 0, 255
-COLOR_NOSE = 0, 255, 255
+    for feature in feature_list:
+        feature_rect = Rectangle(*feature)
+        result.append(feature_rect)
 
+    return result
 
-def detect_feature()
 
 def detect_persons(image):
     persons = []
 
     image_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    face_list = face_cascade.detectMultiScale(image_gray, 1.3, 5)
+    face_list = detect_feature(face_cascade, image_gray)
 
-    for face in face_list:
+    for face_rect in face_list:
         person = Person()
-
-        face_rect = Rectangle(*face)
         person.face = face_rect
 
-        face_rect.draw(image, COLOR_FACE)
+        face_rect.draw_rect(image, COLOR_FACE)
 
         face_gray_image = face_rect.slice_image(image_gray)
         face_color_image = face_rect.slice_image(image)
 
-        eyes = eye_cascade.detectMultiScale(face_gray_image, 1.3, 10)
-        for eye in eyes:
-            eye_rect = Rectangle(*eye)
-            eye_rect.draw(image, COLOR_EYE)
-
-            person.eyes.append(Rectangle(*eye))
-
-        mouth = mouth_cascade.detectMultiScale(face_gray_image, 1.3, 10)
-        for mouth_x, mouth_y, mouth_width, mouth_height in mouth:
-            cv2.rectangle(face_color_image, (mouth_x, mouth_y), (mouth_x + mouth_width, mouth_y + mouth_height), COLOR_MONTH, 2)
-
-        nose = nose_cascade.detectMultiScale(face_gray_image, 1.3, 10)
-        for nose_x, nose_y, nose_width, nose_height in nose:
-            cv2.rectangle(face_color_image, (nose_x, nose_y), (nose_x + nose_width, nose_y + nose_height), COLOR_NOSE, 2)
+        person.eyes = detect_feature(eye_cascade, face_gray_image)
+        person.noses = detect_feature(nose_cascade, face_gray_image)
+        person.mouths = detect_feature(mouth_cascade, face_gray_image)
 
         persons.append(person)
+        person.draw_rects(face_color_image)
 
     return persons
 
