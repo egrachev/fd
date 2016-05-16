@@ -26,6 +26,9 @@ class Rectangle(object):
         self.x2 = x + width
         self.y2 = y + height
 
+        self.width = width
+        self.height = height
+
     @property
     def point1(self):
         return self.x1, self.y1
@@ -48,6 +51,41 @@ class Person(object):
         self.noses = []
         self.mouths = []
 
+    def resize(self, overlay, width):
+        ratio = float(width) / overlay.shape[1]
+        dim = (int(width), int(overlay.shape[0] * ratio))
+        result = cv2.resize(overlay, dim, interpolation=cv2.INTER_AREA)
+
+        return result
+
+    def draw_eyes(self, image, overlay):
+        pass
+
+    def draw_nose(self, image, overlay):
+        nose = self.noses[0]
+        roi = image[nose.y1:nose.y2, nose.x1:nose.x2]
+        overlay_resized = self.resize(overlay, nose.width)
+
+        # Now create a mask of logo and create its inverse mask also
+        overlay_gray = cv2.cvtColor(overlay_resized, cv2.COLOR_BGR2GRAY)
+        ret, mask = cv2.threshold(overlay_gray, 10, 255, cv2.THRESH_BINARY)
+        mask_inv = cv2.bitwise_not(mask)
+
+        cv2.imshow('r', mask_inv)
+        cv2.waitKey(0)
+
+        # Now black-out the area of logo in ROI
+        image_bg = cv2.bitwise_and(roi, roi, mask=mask_inv)
+
+        # Take only region of logo from logo image.
+        overlay_fg = cv2.bitwise_and(overlay, overlay, mask=mask)
+
+        # Put logo in ROI and modify the main image
+        image[nose.y1:nose.y2, nose.x1:nose.x2] = cv2.add(image_bg, overlay_fg)
+
+    def draw_mouth(self, image, overlay):
+        pass
+
     def draw_rects(self, image):
         self.face.draw_rect(image, COLOR_FACE)
 
@@ -61,12 +99,18 @@ class Person(object):
             mouth_rect.draw_rect(image, COLOR_MONTH)
 
 
-def detect_feature(cascade, image):
+def detect_feature(cascade, image, rel_x=0, rel_y=0):
     result = []
     feature_list = cascade.detectMultiScale(image, FEATURE_SCALE, FEATURE_MIN_NEIGHBORS)
 
     for feature in feature_list:
-        feature_rect = Rectangle(*feature)
+        x, y, width, height = feature
+
+        if rel_x or rel_y:
+            x += rel_x
+            y += rel_y
+
+        feature_rect = Rectangle(x, y, width, height)
         result.append(feature_rect)
 
     return result
@@ -82,25 +126,25 @@ def detect_persons(image):
         person = Person()
         person.face = face_rect
 
-        face_rect.draw_rect(image, COLOR_FACE)
+        image_gray_face = face_rect.slice_image(image_gray)
+        image_color_face = face_rect.slice_image(image)
 
-        face_gray_image = face_rect.slice_image(image_gray)
-        face_color_image = face_rect.slice_image(image)
-
-        person.eyes = detect_feature(eye_cascade, face_gray_image)
-        person.noses = detect_feature(nose_cascade, face_gray_image)
-        person.mouths = detect_feature(mouth_cascade, face_gray_image)
+        person.eyes = detect_feature(eye_cascade, image_gray_face, face_rect.x1, face_rect.y1)
+        person.noses = detect_feature(nose_cascade, image_gray_face, face_rect.x1, face_rect.y1)
+        person.mouths = detect_feature(mouth_cascade, image_gray_face, face_rect.x1, face_rect.y1)
 
         persons.append(person)
-        person.draw_rects(face_color_image)
+        # person.draw_rects(image)
 
     return persons
 
-# load input image in grayscale mode
 img = cv2.imread('test.jpg')
-detect_persons(img)
+persons = detect_persons(img)
+person = persons[0]
+overlay = cv2.imread('mustache.png')
+person.draw_nose(img, overlay)
 
 
-cv2.imshow('img', img)
+# cv2.imshow('img', img)
 cv2.waitKey(0)
 cv2.destroyAllWindows()
