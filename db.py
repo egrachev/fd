@@ -2,6 +2,7 @@
 
 from __future__ import unicode_literals
 
+from datetime import datetime
 from pony.orm import *
 
 
@@ -10,13 +11,17 @@ db = Database()
 
 class User(db.Entity):
     date_create = Required(datetime)
+
     first_name = Required(unicode)
     last_name = Required(unicode)
     username = Required(unicode)
 
+    sessions = Set('Session')
+
 
 class FaceImage(db.Entity):
     date_create = Required(datetime)
+    sessions = Set('Session')
 
     width = Required(int)
     height = Required(int)
@@ -30,6 +35,7 @@ class FaceImage(db.Entity):
 
 
 class Overlay(db.Entity):
+    face_image = Required(FaceImage)
     type = Required(int)
 
     name = Required(unicode)
@@ -40,6 +46,7 @@ class Overlay(db.Entity):
 
 
 class Feature(db.Entity):
+    face_image = Required(FaceImage)
     type = Required(int)
 
     x1 = Required(int)
@@ -68,5 +75,5 @@ class Session(db.Entity):
 
 
 # PostgreSQL
-# db.bind('postgres', user='', password='', host='', database='')
-# db.generate_mapping(create_tables=True)
+db.bind('postgres', user='postgres', password='', host='', database='fd')
+db.generate_mapping(create_tables=True)

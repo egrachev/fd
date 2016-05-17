@@ -6,6 +6,7 @@ import numpy as np
 import cv2
 
 from config import *
+from db import *
 
 log = logging.getLogger('detect').debug
 
@@ -62,6 +63,9 @@ class Person(object):
         result = cv2.resize(overlay, dim, interpolation=cv2.INTER_AREA)
 
         return result
+
+    def compose(self, image, overlay):
+        pass
 
     def draw_eyes(self, image, overlay):
         pass
