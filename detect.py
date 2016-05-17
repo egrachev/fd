@@ -1,8 +1,13 @@
 # -*- coding: utf-8 -*-
 
+import os
+import logging
 import numpy as np
 import cv2
 
+from config import *
+
+log = logging.getLogger('detect').debug
 
 face_cascade = cv2.CascadeClassifier('cascades/haarcascade_frontalface_alt.xml')
 eye_cascade = cv2.CascadeClassifier('cascades/haarcascade_eye.xml')
@@ -142,11 +147,11 @@ def detect_persons(image):
 
     return persons
 
-img = cv2.imread('test.jpg')
+img = cv2.imread(os.path.join(USER_IMAGES_DIR, 'test1.jpg'))
 persons = detect_persons(img)
-person = persons[0]
-overlay = cv2.imread('mustache.png')
-person.draw_nose(img, overlay)
+p = persons[0]
+overlay_img = cv2.imread(os.path.join(OVERLAYS_NOSES_DIR, 'mustache.png'))
+p.draw_nose(img, overlay_img)
 
 cv2.namedWindow('img', cv2.WINDOW_NORMAL)
 cv2.imshow('img', img)
