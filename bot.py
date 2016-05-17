@@ -5,12 +5,15 @@ import time
 import telepot
 
 from pprint import pprint
-
+from .bot_config import *
 
 TELEGRAM_BOT_TOKEN = open('bot_token.txt').read()
 
 
 bot = telepot.Bot(TELEGRAM_BOT_TOKEN)
+
+
+
 
 
 def handle(message):
@@ -24,6 +27,14 @@ def handle(message):
     # f = open('zzzzzzzz.jpg', 'rb')  # some file on local disk
     # response = bot.sendPhoto(999999999, f)
 
+    # keyboard handle
+    # flavor = telepot.flavor(msg)
+    #
+    # if flavor == 'chat':
+    #     print ('Chat message')
+    # elif flavor == 'callback_query':
+    #     print ('Callback query')
+
     print (content_type, chat_type, chat_id)
 
 
@@ -33,5 +44,4 @@ bot.message_loop(handle)
 print ('Listening ...')
 
 
-while 1:
-    time.sleep(10)
+bot.message_loop(run_forever=True)

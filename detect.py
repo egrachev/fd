@@ -4,10 +4,10 @@ import numpy as np
 import cv2
 
 
-face_cascade = cv2.CascadeClassifier('haarcascades/haarcascade_frontalface_alt.xml')
-eye_cascade = cv2.CascadeClassifier('haarcascades/haarcascade_eye.xml')
-mouth_cascade = cv2.CascadeClassifier('haarcascades/haarcascade_mcs_mouth.xml')
-nose_cascade = cv2.CascadeClassifier('haarcascades/haarcascade_mcs_nose.xml')
+face_cascade = cv2.CascadeClassifier('cascades/haarcascade_frontalface_alt.xml')
+eye_cascade = cv2.CascadeClassifier('cascades/haarcascade_eye.xml')
+mouth_cascade = cv2.CascadeClassifier('cascades/haarcascade_mcs_mouth.xml')
+nose_cascade = cv2.CascadeClassifier('cascades/haarcascade_mcs_nose.xml')
 
 COLOR_FACE = 255, 0, 0
 COLOR_EYE = 0, 255, 0
