@@ -63,25 +63,30 @@ class Person(object):
 
     def draw_nose(self, image, overlay):
         nose = self.noses[0]
-        roi = image[nose.y1:nose.y2, nose.x1:nose.x2]
+
         overlay_resized = self.resize(overlay, nose.width)
+        overlay_height, overlay_width, channels = overlay_resized.shape
+
+        # center
+        roi_x1 = nose.x1 + abs(nose.width - overlay_width) / 2
+        # roi_y1 = nose.y1 + abs(nose.height - overlay_height) / 2
+        roi_y1 = nose.y2 - overlay_height
+
+        roi = image[roi_y1:roi_y1 + overlay_height, roi_x1:roi_x1 + overlay_width]
 
         # Now create a mask of logo and create its inverse mask also
         overlay_gray = cv2.cvtColor(overlay_resized, cv2.COLOR_BGR2GRAY)
         ret, mask = cv2.threshold(overlay_gray, 10, 255, cv2.THRESH_BINARY)
         mask_inv = cv2.bitwise_not(mask)
 
-        cv2.imshow('r', mask_inv)
-        cv2.waitKey(0)
-
         # Now black-out the area of logo in ROI
-        image_bg = cv2.bitwise_and(roi, roi, mask=mask_inv)
+        image_bg = cv2.bitwise_and(roi, roi, mask=mask)
 
         # Take only region of logo from logo image.
-        overlay_fg = cv2.bitwise_and(overlay, overlay, mask=mask)
+        overlay_fg = cv2.bitwise_and(overlay_resized, overlay_resized, mask=mask_inv)
 
         # Put logo in ROI and modify the main image
-        image[nose.y1:nose.y2, nose.x1:nose.x2] = cv2.add(image_bg, overlay_fg)
+        image[roi_y1:roi_y1 + overlay_height, roi_x1:roi_x1 + overlay_width] = cv2.add(image_bg, overlay_fg)
 
     def draw_mouth(self, image, overlay):
         pass
@@ -127,14 +132,13 @@ def detect_persons(image):
         person.face = face_rect
 
         image_gray_face = face_rect.slice_image(image_gray)
-        image_color_face = face_rect.slice_image(image)
 
         person.eyes = detect_feature(eye_cascade, image_gray_face, face_rect.x1, face_rect.y1)
         person.noses = detect_feature(nose_cascade, image_gray_face, face_rect.x1, face_rect.y1)
         person.mouths = detect_feature(mouth_cascade, image_gray_face, face_rect.x1, face_rect.y1)
 
         persons.append(person)
-        # person.draw_rects(image)
+        person.draw_rects(image)
 
     return persons
 
@@ -144,7 +148,8 @@ person = persons[0]
 overlay = cv2.imread('mustache.png')
 person.draw_nose(img, overlay)
 
+cv2.namedWindow('img', cv2.WINDOW_NORMAL)
+cv2.imshow('img', img)
 
-# cv2.imshow('img', img)
 cv2.waitKey(0)
 cv2.destroyAllWindows()
