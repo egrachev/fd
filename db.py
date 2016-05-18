@@ -68,6 +68,16 @@ class Feature(db.Entity):
     parent = Optional('Feature', reverse='children')
     children = Set('Feature', reverse='parent')
 
+    def get_type_title(self):
+        if self.type == FEATURE_TYPE_FACE:
+            return 'face'
+        elif self.type == FEATURE_TYPE_EYE:
+            return 'eye'
+        elif self.type == FEATURE_TYPE_NOSE:
+            return 'nose'
+        elif self.type == FEATURE_TYPE_MOUTH:
+            return 'mouth'
+
     def get_color(self):
         if self.type == FEATURE_TYPE_FACE:
             return 255, 0, 0
@@ -213,5 +223,4 @@ def get_session_by_name(name):
 
 @db_session
 def get_session_list(user_id):
-    user = User[user_id]
-    return list(Session.select(user=user))
+    return list(select(s for s in Session if s.user == User[user_id]))

@@ -53,10 +53,15 @@ def handle_message(message):
         file_origin = get_file_origin(photo_id)
         image = cv2.imread(file_origin)
 
+        features_list = ['Выбираем размеченную область']
         # draw features
         for f in get_features(photo_id):
             cv2.rectangle(image, (f.x1, f.y1), (f.x2, f.y2), f.get_color(), thickness=2)
+            features_list.append('/select %s %s' % (f.get_type_title(), f.id))
+
             log('draw rectangle: x=%s y=%s width=%s height=%s', f.x1, f.y1, f.width, f.height)
+
+        bot.sendMessage(chat_id, '\n'.join(features_list))
 
         # make dir for draw features
         user_dir_rects = os.path.join(USER_IMAGES_DIR, 'rects')
@@ -120,6 +125,11 @@ def handle_message(message):
             bot.sendMessage(chat_id, sessions_text)
 
             log('session list: user_id=%s', user_id)
+
+
+        elif command == '/select':
+            pass
+
 
         elif command == '/close':
             try:
