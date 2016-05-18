@@ -65,3 +65,4 @@ target/
 .idea/
 /bot_token.txt
 *.log
+user_images/*

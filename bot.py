@@ -33,6 +33,7 @@ def handle_message(message):
     user_id = get_user_id(first_name, last_name)
 
     if message_type == 'photo':
+        # take big photo
         photo = message['photo'][-1]
 
         user_dir = os.path.join(USER_IMAGES_DIR, '%s_%s' % (first_name, last_name))
@@ -44,14 +45,20 @@ def handle_message(message):
             bot.download_file(photo['file_id'], photo_path)
 
         create_photo(user_id, photo_path, chat_id, photo['width'], photo['height'], photo['file_id'])
-
-
-
         log('create photo: photo_path=%s', photo_path)
 
     # handle commands
     if 'text' in message and message['text'].startswith('/'):
-        command, param = message['text'].split(' ')
+        parts = message['text'].split(' ')
+        command = ''
+        param = ''
+
+        if len(parts) == 1:
+            command = parts[0]
+
+        if len(parts) == 2:
+            command, param = parts
+
         command = command.strip().lower()
         param = param.strip().lower()
 

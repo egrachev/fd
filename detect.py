@@ -95,24 +95,25 @@ def detect_feature(name, image, rel_x=0, rel_y=0):
     return result
 
 
-def detect_persons(image):
-    persons = []
+def detect_persons(image_path):
+    result = []
 
+    image = cv2.imread(image_path)
     image_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     face_list = detect_feature('face', image_gray)
 
     for x, y, width, height in face_list:
         roi = image_gray[y:y+height, x:x+width]
 
-        persons.append({
+        result.append({
             'face': (x, y, width, height),
             'eyes': detect_feature('eye', roi, x, y),
             'noses': detect_feature('nose', roi, x, y),
             'mouths': detect_feature('mouth', roi, x, y),
         })
 
-    log('detect persons: count=%s', len(persons))
-    return persons
+    log('detect persons: count=%s', len(result))
+    return result
 
 # img = cv2.imread(os.path.join(USER_IMAGES_DIR, 'test1.jpg'))
 # person_list = detect_persons(img)

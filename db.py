@@ -5,7 +5,7 @@ from __future__ import unicode_literals
 from datetime import datetime
 from pony.orm import *
 from config import *
-
+from detect import detect_persons
 
 db = Database()
 
@@ -20,7 +20,7 @@ class User(db.Entity):
     sessions = Set('Session')
 
 
-class FaceImage(db.Entity):
+class Photo(db.Entity):
     date_create = Required(datetime, sql_default='CURRENT_TIMESTAMP')
     sessions = Set('Session')
 
@@ -36,7 +36,7 @@ class FaceImage(db.Entity):
 
 
 class Overlay(db.Entity):
-    face_image = Required(FaceImage)
+    photo = Required(Photo)
     type = Required(int)
 
     name = Required(unicode)
@@ -46,8 +46,14 @@ class Overlay(db.Entity):
     height = Required(int)
 
 
+FEATURE_TYPE_FACE = 0
+FEATURE_TYPE_EYE = 1
+FEATURE_TYPE_NOSE = 2
+FEATURE_TYPE_MOUTH = 3
+
+
 class Feature(db.Entity):
-    face_image = Required(FaceImage)
+    photo = Required(Photo)
     type = Required(int)
 
     x1 = Required(int)
@@ -59,6 +65,9 @@ class Feature(db.Entity):
     width = Required(int)
     height = Required(int)
 
+    parent = Optional('Feature', reverse='children')
+    children = Set('Feature', reverse='parent')
+
 
 SESSION_STATUS_OPEN = 0
 SESSION_STATUS_CLOSE = 1
@@ -68,7 +77,7 @@ SESSION_STATUS_CURRENT = 2
 class Session(db.Entity):
     date_create = Required(datetime, sql_default='CURRENT_TIMESTAMP')
     name = Required(unicode, unique=True)
-    face_image = Optional(FaceImage)
+    photo = Optional(Photo)
     user = Required(User)
 
     chat_token = Required(int)
@@ -80,8 +89,15 @@ db.generate_mapping(create_tables=True)
 
 
 @db_session
-def get_user_id(first_name, last_name):
-    return User.get(first_name=first_name, last_name=last_name).id
+def create_feature(params, feature_type, photo, parent=None):
+    x, y, width, height = map(int, params)
+
+    return Feature(
+        photo=photo, type=feature_type,
+        x1=x, y1=y, x2=x + width, y2=y + height,
+        width=width, height=height,
+        parent=parent,
+    )
 
 
 @db_session
@@ -89,14 +105,34 @@ def create_photo(user_id, photo_path, chat_id, width, height, file_id):
     user = User[user_id]
     session = Session.get(user=user, chat_token=chat_id)
 
-    face_image = FaceImage(
+    photo = Photo(
         width=width,
         height=height,
         file_origin=photo_path,
         file_token=file_id,
     )
 
-    session.face_image = face_image
+    session.photo = photo
+
+    for person in detect_persons(photo_path):
+        parent = create_feature(person['face'], FEATURE_TYPE_FACE, photo)
+
+        for eye in person['eyes']:
+            create_feature(eye, FEATURE_TYPE_EYE, photo, parent=parent)
+
+        for nose in person['noses']:
+            create_feature(nose, FEATURE_TYPE_NOSE, photo, parent=parent)
+
+        for mouth in person['mouths']:
+            create_feature(mouth, FEATURE_TYPE_MOUTH, photo, parent=parent)
+
+
+@db_session
+def get_user_id(first_name, last_name):
+    user = User.get(first_name=first_name, last_name=last_name)
+
+    if user:
+        return user.id
 
 
 @db_session
