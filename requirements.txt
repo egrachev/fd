@@ -1,2 +1,4 @@
+numpy
 pony
 psycopg2
+telepot

@@ -16,6 +16,11 @@ OVERLAYS_EYES_DIR = os.path.join(OVERLAYS_DIR, 'eyes')
 OVERLAYS_MONTHS_DIR = os.path.join(OVERLAYS_DIR, 'months')
 OVERLAYS_NOSES_DIR = os.path.join(OVERLAYS_DIR, 'noses')
 
+DB_HOST = ''
+DB_USER = 'postgres'
+DB_PASS = ''
+DB_NAME = 'fd'
+
 
 LOGGING = {
     'version': 1,
