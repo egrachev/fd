@@ -29,7 +29,7 @@ class Photo(db.Entity):
 
     file_origin = Required(unicode)
     file_path = Optional(unicode)
-    file_token = Required(unicode)
+    file_id = Required(unicode)
 
     features = Set('Feature')
     overlays = Set('Overlay')
@@ -68,6 +68,18 @@ class Feature(db.Entity):
     parent = Optional('Feature', reverse='children')
     children = Set('Feature', reverse='parent')
 
+    def get_color(self):
+        if self.type == FEATURE_TYPE_FACE:
+            return 255, 0, 0
+        elif self.type == FEATURE_TYPE_EYE:
+            return 0, 255, 0
+        elif self.type == FEATURE_TYPE_NOSE:
+            return 0, 255, 255
+        elif self.type == FEATURE_TYPE_MOUTH:
+            return 0, 0, 255
+        else:
+            return 0, 0, 0
+
 
 SESSION_STATUS_OPEN = 0
 SESSION_STATUS_CLOSE = 1
@@ -80,7 +92,7 @@ class Session(db.Entity):
     photo = Optional(Photo)
     user = Required(User)
 
-    chat_token = Required(int)
+    chat_id = Required(int)
     status = Required(int)
 
 
@@ -101,15 +113,25 @@ def create_feature(params, feature_type, photo, parent=None):
 
 
 @db_session
+def photo_exists(file_id):
+    return Photo.exists(file_id=file_id)
+
+
+@db_session
+def get_features(photo_id):
+    return list(select(f for f in Feature if f.photo==Photo[photo_id]))
+
+
+@db_session
 def create_photo(user_id, photo_path, chat_id, width, height, file_id):
     user = User[user_id]
-    session = Session.get(user=user, chat_token=chat_id)
+    session = Session.get(user=user, chat_id=chat_id)
 
     photo = Photo(
         width=width,
         height=height,
         file_origin=photo_path,
-        file_token=file_id,
+        file_id=file_id,
     )
 
     session.photo = photo
@@ -150,7 +172,7 @@ def create_user(first_name, last_name, username):
 @db_session
 def create_session(name, chat_id, user_id):
     user = User[user_id]
-    Session(name=name, user=user, chat_token=chat_id, status=SESSION_STATUS_CURRENT)
+    Session(name=name, user=user, chat_id=chat_id, status=SESSION_STATUS_CURRENT)
 
 
 @db_session
@@ -164,8 +186,24 @@ def use_session(user_id, session_id):
 
 @db_session
 def close_session(chat_id, user):
-    session = Session.get(chat_token=chat_id, user=user)
+    session = Session.get(chat_id=chat_id, user=user)
     session.status = SESSION_STATUS_CLOSE
+
+
+@db_session
+def get_file_origin(photo_id):
+    return Photo[photo_id].file_origin
+
+
+@db_session
+def get_current_photo_id():
+    session_id = get_current_session_id()
+    return Session[session_id].photo.id
+
+
+@db_session
+def get_current_session_id():
+    return Session.get(status=SESSION_STATUS_CURRENT).id
 
 
 @db_session

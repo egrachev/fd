@@ -16,11 +16,6 @@ cascades = {
     'nose': 'cascades/haarcascade_mcs_nose.xml',
 }
 
-COLOR_FACE = 255, 0, 0
-COLOR_EYE = 0, 255, 0
-COLOR_NOSE = 0, 255, 255
-COLOR_MONTH = 0, 0, 255
-
 FEATURE_SCALE = 1.3
 FEATURE_MIN_NEIGHBORS = 10
 
@@ -66,11 +61,6 @@ def make_overlay(image_path, overlay_path, x, y, width, height):
 
     log('make overlay - %s: x=%s y=%s width=%s height=%s', overlay_path, roi_x, roi_y, overlay_width, overlay_height)
     return image
-
-
-def draw_rect(image, x, y, width, height, color=(0, 0, 0), thickness=2):
-    log('draw rectangle: x=%s y=%s width=%s height=%s', x, y, width, height)
-    cv2.rectangle(image, (x, y), (x+width, y+height), color, thickness)
 
 
 def detect_feature(name, image, rel_x=0, rel_y=0):

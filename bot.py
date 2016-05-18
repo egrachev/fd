@@ -8,6 +8,7 @@ import sys
 import time
 import telepot
 import logging
+import cv2
 
 from pprint import pprint
 from config import *
@@ -35,17 +36,40 @@ def handle_message(message):
     if message_type == 'photo':
         # take big photo
         photo = message['photo'][-1]
-
         user_dir = os.path.join(USER_IMAGES_DIR, '%s_%s' % (first_name, last_name))
-        if not os.path.exists(user_dir):
-            os.mkdir(user_dir)
 
-        photo_path = os.path.join(user_dir, photo['file_id'])
-        if not os.path.exists(photo_path):
-            bot.download_file(photo['file_id'], photo_path)
+        if not photo_exists(photo['file_id']):
+            if not os.path.exists(user_dir):
+                os.mkdir(user_dir)
 
-        create_photo(user_id, photo_path, chat_id, photo['width'], photo['height'], photo['file_id'])
-        log('create photo: photo_path=%s', photo_path)
+            photo_path = os.path.join(user_dir, photo['file_id'])
+            if not os.path.exists(photo_path):
+                bot.download_file(photo['file_id'], photo_path)
+
+            create_photo(user_id, photo_path, chat_id, photo['width'], photo['height'], photo['file_id'])
+            log('create photo: photo_path=%s', photo_path)
+
+        photo_id = get_current_photo_id()
+        file_origin = get_file_origin(photo_id)
+        image = cv2.imread(file_origin)
+
+        # draw features
+        for f in get_features(photo_id):
+            cv2.rectangle(image, (f.x1, f.y1), (f.x2, f.y2), f.get_color(), thickness=2)
+            log('draw rectangle: x=%s y=%s width=%s height=%s', f.x1, f.y1, f.width, f.height)
+
+        # make dir for draw features
+        user_dir_rects = os.path.join(USER_IMAGES_DIR, 'rects')
+        if not os.path.exists(user_dir_rects):
+            os.mkdir(user_dir_rects)
+
+        # save draw features
+        photo_rects = os.path.join(user_dir_rects, '%s_all.jpg' % photo['file_id'])
+        cv2.imwrite(photo_rects, image)
+
+        # send result
+        with open(photo_rects) as f:
+            bot.sendPhoto(chat_id, f)
 
     # handle commands
     if 'text' in message and message['text'].startswith('/'):
@@ -115,8 +139,7 @@ def handle_message(message):
     # show_keyboard = {'keyboard': [['Yes', 'No'], ['Maybe', 'Maybe not']]}
     # bot.sendMessage(999999999, 'This is a custom keyboard', reply_markup=show_keyboard)
 
-    # f = open('zzzzzzzz.jpg', 'rb')  # some file on local disk
-    # response = bot.sendPhoto(999999999, f)
+
 
     # keyboard handle
     # flavor = telepot.flavor(msg)
