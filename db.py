@@ -2,6 +2,7 @@
 
 from __future__ import unicode_literals
 
+import cv2
 from datetime import datetime
 from pony.orm import *
 from config import *
@@ -46,10 +47,11 @@ class Overlay(db.Entity):
     height = Required(int)
 
 
-FEATURE_TYPE_FACE = 0
-FEATURE_TYPE_EYE = 1
-FEATURE_TYPE_NOSE = 2
-FEATURE_TYPE_MOUTH = 3
+TYPE_FACE = 0
+TYPE_EYE = 1
+TYPE_NOSE = 2
+TYPE_MOUTH = 3
+TYPE_UNKNOWN = 4
 
 
 class Feature(db.Entity):
@@ -69,23 +71,23 @@ class Feature(db.Entity):
     children = Set('Feature', reverse='parent')
 
     def get_type_title(self):
-        if self.type == FEATURE_TYPE_FACE:
+        if self.type == TYPE_FACE:
             return 'face'
-        elif self.type == FEATURE_TYPE_EYE:
+        elif self.type == TYPE_EYE:
             return 'eye'
-        elif self.type == FEATURE_TYPE_NOSE:
+        elif self.type == TYPE_NOSE:
             return 'nose'
-        elif self.type == FEATURE_TYPE_MOUTH:
+        elif self.type == TYPE_MOUTH:
             return 'mouth'
 
     def get_color(self):
-        if self.type == FEATURE_TYPE_FACE:
+        if self.type == TYPE_FACE:
             return 255, 0, 0
-        elif self.type == FEATURE_TYPE_EYE:
+        elif self.type == TYPE_EYE:
             return 0, 255, 0
-        elif self.type == FEATURE_TYPE_NOSE:
+        elif self.type == TYPE_NOSE:
             return 0, 255, 255
-        elif self.type == FEATURE_TYPE_MOUTH:
+        elif self.type == TYPE_MOUTH:
             return 0, 0, 255
         else:
             return 0, 0, 0
@@ -123,19 +125,53 @@ def create_feature(params, feature_type, photo, parent=None):
 
 
 @db_session
+def create_overlay(photo_id, overlay):
+    photo = Photo[photo_id]
+    overlay_dir, overlay_name = overlay.split('/')
+    overlay_path = os.path.join(OVERLAYS_DIR, overlay)
+
+    overlay_image = cv2.imread(overlay_path)
+    height, width, channels = overlay_image.shape
+
+    if overlay_dir == 'face':
+        overlay_type = TYPE_FACE
+    elif overlay_dir == 'eyes':
+        overlay_type = TYPE_EYE
+    elif overlay_dir == 'noses':
+        overlay_type = TYPE_NOSE
+    elif overlay_dir == 'mouths':
+        overlay_type = TYPE_MOUTH
+    else:
+        overlay_type = TYPE_UNKNOWN
+
+    Overlay(
+        photo=photo,
+        type=overlay_type,
+        name=overlay_name,
+        image=overlay_path,
+        width=width,
+        height=height
+    )
+
+
+@db_session
 def photo_exists(file_id):
     return Photo.exists(file_id=file_id)
 
 
 @db_session
-def get_features(photo_id):
-    return list(select(f for f in Feature if f.photo==Photo[photo_id]))
+def get_feature(feature_id):
+    return Feature[feature_id]
 
 
 @db_session
-def create_photo(user_id, photo_path, chat_id, width, height, file_id):
-    user = User[user_id]
-    session = Session.get(user=user, chat_id=chat_id)
+def get_features(photo_id):
+    return list(select(f for f in Feature if f.photo == Photo[photo_id]))
+
+
+@db_session
+def create_photo(photo_path, width, height, file_id):
+    session = Session.get(status=SESSION_STATUS_CURRENT)
 
     photo = Photo(
         width=width,
@@ -147,16 +183,16 @@ def create_photo(user_id, photo_path, chat_id, width, height, file_id):
     session.photo = photo
 
     for person in detect_persons(photo_path):
-        parent = create_feature(person['face'], FEATURE_TYPE_FACE, photo)
+        parent = create_feature(person['face'], TYPE_FACE, photo)
 
         for eye in person['eyes']:
-            create_feature(eye, FEATURE_TYPE_EYE, photo, parent=parent)
+            create_feature(eye, TYPE_EYE, photo, parent=parent)
 
         for nose in person['noses']:
-            create_feature(nose, FEATURE_TYPE_NOSE, photo, parent=parent)
+            create_feature(nose, TYPE_NOSE, photo, parent=parent)
 
         for mouth in person['mouths']:
-            create_feature(mouth, FEATURE_TYPE_MOUTH, photo, parent=parent)
+            create_feature(mouth, TYPE_MOUTH, photo, parent=parent)
 
 
 @db_session
@@ -182,14 +218,19 @@ def create_user(first_name, last_name, username):
 @db_session
 def create_session(name, chat_id, user_id):
     user = User[user_id]
+
+    for s in Session.select(lambda s: s.user == user):
+        s.status = SESSION_STATUS_OPEN
+
     Session(name=name, user=user, chat_id=chat_id, status=SESSION_STATUS_CURRENT)
 
 
 @db_session
 def use_session(user_id, session_id):
     user = User[user_id]
-    session = Session.get(user=user, status=SESSION_STATUS_CURRENT)
-    session.status = SESSION_STATUS_OPEN
+
+    for s in Session.select(lambda s: s.user == user):
+        s.status = SESSION_STATUS_OPEN
 
     Session[session_id].status = SESSION_STATUS_CURRENT
 
@@ -208,7 +249,14 @@ def get_file_origin(photo_id):
 @db_session
 def get_current_photo_id():
     session_id = get_current_session_id()
-    return Session[session_id].photo.id
+
+    if Session[session_id].photo:
+        return Session[session_id].photo.id
+
+
+@db_session
+def get_session_name(session_id):
+    return Session[session_id].name
 
 
 @db_session
