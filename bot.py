@@ -59,13 +59,13 @@ def handle_message(message):
             create_photo(photo_path, photo['width'], photo['height'], photo['file_id'])
             log('create photo: photo_path=%s', photo_path)
 
-        photo_id = get_current_photo_id()
+        photo_id = get_current_photo_id(user_id)
         file_origin = get_file_origin(photo_id)
         image = cv2.imread(file_origin)
 
         # draw features on uploaded photo
         features_list = [SELECT_FEATURE_TITLE]
-        for f in get_features():
+        for f in get_features(user_id):
             cv2.rectangle(image, (f.x1, f.y1), (f.x2, f.y2), f.get_color(), thickness=2)
             features_list.append('/select %s (%s)' % (f.id, f.type.name))
 
@@ -128,7 +128,7 @@ def handle_message(message):
             use_session(user_id, session_id)
             bot.sendMessage(chat_id, COMMAND_SESSION_CURRENT % (get_session_name(session_id), session_id))
 
-            photo_id = get_current_photo_id()
+            photo_id = get_current_photo_id(user_id)
             if not photo_id:
                 bot.sendMessage(chat_id, COMMAND_SESSION_SEND_PHOTO)
 
@@ -144,7 +144,7 @@ def handle_message(message):
         elif command == '/select':
             feature_id = int(param1)
             feature = get_feature(feature_id)
-            photo_id = get_current_photo_id()
+            photo_id = get_current_photo_id(user_id)
             photo_rect = os.path.join(user_dir_features, '%s_%s_%s.jpg' % (photo_id, feature_id, feature.type.name))
 
             if not os.path.exists(photo_rect):
@@ -183,7 +183,7 @@ def handle_message(message):
             feature_id = int(param1)
             feature = get_feature(feature_id)
             overlay = get_overlay_by_name(param2)
-            photo_id = get_current_photo_id()
+            photo_id = get_current_photo_id(user_id)
 
             photo_overlay_name = '%s_%s_%s_%s.jpg' % (photo_id, feature_id, feature.type.name, param2)
             photo_overlay = os.path.join(user_dir_features, photo_overlay_name)
@@ -201,7 +201,23 @@ def handle_message(message):
                 bot.sendPhoto(chat_id, f)
 
         elif command == '/show':
-            pass
+            photo_id = get_current_photo_id(user_id)
+            photo_show_name = '%s_show.jpg' % photo_id
+            photo_show = os.path.join(user_dir, photo_show_name)
+            image_path = get_file_origin(photo_id)
+
+            for i, fo in enumerate(get_features_overlays(user_id)):
+                feature_params = fo.feature.x1, fo.feature.y1, fo.feature.width, fo.feature.height
+
+                if not i:
+                    image = make_overlay(image_path, fo.overlay.image, *feature_params)
+                else:
+                    image = make_overlay(photo_show, fo.overlay.image, *feature_params)
+
+                cv2.imwrite(photo_show, image)
+
+            with open(photo_show) as f:
+                bot.sendPhoto(chat_id, f)
 
         elif command == '/close':
             try:

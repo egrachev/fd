@@ -185,10 +185,17 @@ def get_feature(feature_id):
 
 
 @db_session
-def get_features():
-    session_id = get_current_session_id()
+def get_features(user_id):
+    session_id = get_current_session_id(user_id)
 
     return select(f for f in Feature if f.session == Session[session_id]).prefetch(FeatureType)[:]
+
+
+@db_session
+def get_features_overlays(user_id):
+    features = get_features(user_id)
+
+    return select(fo for fo in FeatureOverlay if fo.feature in features).prefetch(Feature, Overlay)[:]
 
 
 @db_session
@@ -269,8 +276,8 @@ def get_file_origin(photo_id):
 
 
 @db_session
-def get_current_photo_id():
-    session_id = get_current_session_id()
+def get_current_photo_id(user_id):
+    session_id = get_current_session_id(user_id)
 
     if Session[session_id].photo:
         return Session[session_id].photo.id
@@ -282,9 +289,8 @@ def get_session_name(session_id):
 
 
 @db_session
-def get_current_session_id():
-    #
-    return Session.get(status=STATUS_CURRENT).id
+def get_current_session_id(user_id):
+    return Session.get(status=STATUS_CURRENT, user=User[user_id]).id
 
 
 @db_session
