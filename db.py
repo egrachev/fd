@@ -3,6 +3,8 @@
 from __future__ import unicode_literals
 
 import cv2
+import glob
+
 from datetime import datetime
 from pony.orm import *
 from config import *
@@ -23,7 +25,6 @@ class User(db.Entity):
 
 class Photo(db.Entity):
     date_create = Required(datetime, sql_default='CURRENT_TIMESTAMP')
-    sessions = Set('Session')
 
     width = Required(int)
     height = Required(int)
@@ -32,32 +33,46 @@ class Photo(db.Entity):
     file_path = Optional(unicode)
     file_id = Required(unicode)
 
+    session = Required('Session')
+
+
+STATUS_OPEN = 0
+STATUS_CLOSE = 1
+STATUS_CURRENT = 2
+
+
+class Session(db.Entity):
+    date_create = Required(datetime, sql_default='CURRENT_TIMESTAMP')
+    name = Required(unicode, unique=True)
+
+    chat_id = Required(int)
+    status = Required(int)
+
+    photo = Optional('Photo')
+    user = Required('User')
     features = Set('Feature')
-    overlays = Set('Overlay')
 
 
 class Overlay(db.Entity):
-    photo = Required(Photo)
-    type = Required(int)
-
     name = Required(unicode)
     image = Required(unicode)
 
     width = Required(int)
     height = Required(int)
 
+    type = Required('FeatureType')
+    feature_overlay_list = Set('FeatureOverlay')
 
-TYPE_FACE = 0
-TYPE_EYE = 1
-TYPE_NOSE = 2
-TYPE_MOUTH = 3
-TYPE_UNKNOWN = 4
+
+class FeatureType(db.Entity):
+    name = Required(unicode)
+    color = Required(unicode)
+
+    features = Set('Feature')
+    overlays = Set('Overlay')
 
 
 class Feature(db.Entity):
-    photo = Required(Photo)
-    type = Required(int)
-
     x1 = Required(int)
     y1 = Required(int)
 
@@ -67,49 +82,57 @@ class Feature(db.Entity):
     width = Required(int)
     height = Required(int)
 
+    type = Required('FeatureType')
+    session = Required('Session')
     parent = Optional('Feature', reverse='children')
     children = Set('Feature', reverse='parent')
-
-    def get_type_title(self):
-        if self.type == TYPE_FACE:
-            return 'face'
-        elif self.type == TYPE_EYE:
-            return 'eye'
-        elif self.type == TYPE_NOSE:
-            return 'nose'
-        elif self.type == TYPE_MOUTH:
-            return 'mouth'
-
-    def get_color(self):
-        if self.type == TYPE_FACE:
-            return 255, 0, 0
-        elif self.type == TYPE_EYE:
-            return 0, 255, 0
-        elif self.type == TYPE_NOSE:
-            return 0, 255, 255
-        elif self.type == TYPE_MOUTH:
-            return 0, 0, 255
-        else:
-            return 0, 0, 0
+    feature_overlay_list = Set('FeatureOverlay')
 
 
-SESSION_STATUS_OPEN = 0
-SESSION_STATUS_CLOSE = 1
-SESSION_STATUS_CURRENT = 2
-
-
-class Session(db.Entity):
-    date_create = Required(datetime, sql_default='CURRENT_TIMESTAMP')
-    name = Required(unicode, unique=True)
-    photo = Optional(Photo)
-    user = Required(User)
-
-    chat_id = Required(int)
-    status = Required(int)
+class FeatureOverlay(db.Entity):
+    feature = Required('Feature')
+    overlay = Required('Overlay')
 
 
 db.bind('postgres', user=DB_USER, password=DB_PASS, host=DB_HOST, database=DB_NAME)
 db.generate_mapping(create_tables=True)
+
+
+@db_session
+def initial_data():
+    if not FeatureType.exists():
+        feature_types = {
+            'face': FeatureType(name='face', color='255,0,0'),
+            'eye': FeatureType(name='eye', color='0,255,0'),
+            'nose': FeatureType(name='nose', color='0,255,255'),
+            'mouth': FeatureType(name='mouth', color='0,0,255'),
+        }
+    else:
+        feature_types = {
+            'face': FeatureType.get(name='face', color='255,0,0'),
+            'eye': FeatureType.get(name='eye', color='0,255,0'),
+            'nose': FeatureType.get(name='nose', color='0,255,255'),
+            'mouth': FeatureType.get(name='mouth', color='0,0,255'),
+        }
+
+    for overlay_path in glob.glob('overlays/*/*.*'):
+        if not Overlay.get(image=overlay_path):
+            _, type_name, filename = overlay_path.split('/')
+            name, extension = filename.split('.')
+
+            overlay_image = cv2.imread(overlay_path)
+            height, width, channels = overlay_image.shape
+
+            Overlay(
+                type=feature_types[type_name],
+                name=name,
+                image=overlay_path,
+                width=width,
+                height=height
+            )
+
+
+initial_data()
 
 
 @db_session
@@ -171,7 +194,7 @@ def get_features(photo_id):
 
 @db_session
 def create_photo(photo_path, width, height, file_id):
-    session = Session.get(status=SESSION_STATUS_CURRENT)
+    session = Session.get(status=STATUS_CURRENT)
 
     photo = Photo(
         width=width,
@@ -220,9 +243,9 @@ def create_session(name, chat_id, user_id):
     user = User[user_id]
 
     for s in Session.select(lambda s: s.user == user):
-        s.status = SESSION_STATUS_OPEN
+        s.status = STATUS_OPEN
 
-    Session(name=name, user=user, chat_id=chat_id, status=SESSION_STATUS_CURRENT)
+    Session(name=name, user=user, chat_id=chat_id, status=STATUS_CURRENT)
 
 
 @db_session
@@ -230,15 +253,15 @@ def use_session(user_id, session_id):
     user = User[user_id]
 
     for s in Session.select(lambda s: s.user == user):
-        s.status = SESSION_STATUS_OPEN
+        s.status = STATUS_OPEN
 
-    Session[session_id].status = SESSION_STATUS_CURRENT
+    Session[session_id].status = STATUS_CURRENT
 
 
 @db_session
 def close_session(chat_id, user):
     session = Session.get(chat_id=chat_id, user=user)
-    session.status = SESSION_STATUS_CLOSE
+    session.status = STATUS_CLOSE
 
 
 @db_session
@@ -261,7 +284,7 @@ def get_session_name(session_id):
 
 @db_session
 def get_current_session_id():
-    return Session.get(status=SESSION_STATUS_CURRENT).id
+    return Session.get(status=STATUS_CURRENT).id
 
 
 @db_session
