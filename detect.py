@@ -25,7 +25,7 @@ def resize_overlay(overlay_path, width):
     overlay_height, overlay_width, channels = overlay.shape
 
     ratio = float(width) / overlay_width
-    height = overlay_height * ratio
+    height = int(overlay_height * ratio)
 
     result = cv2.resize(overlay, (width, height), interpolation=cv2.INTER_AREA)
 
@@ -97,9 +97,9 @@ def detect_persons(image_path):
 
         result.append({
             'face': (x, y, width, height),
-            'eyes': detect_feature('eye', roi, x, y),
-            'noses': detect_feature('nose', roi, x, y),
-            'mouths': detect_feature('mouth', roi, x, y),
+            'eye': detect_feature('eye', roi, x, y),
+            'nose': detect_feature('nose', roi, x, y),
+            'mouth': detect_feature('mouth', roi, x, y),
         })
 
     log('detect persons: count=%s', len(result))

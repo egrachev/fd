@@ -8,13 +8,12 @@ BASE_DIR = os.path.abspath(os.path.dirname(__name__))
 LOG_DIR = os.path.join(BASE_DIR, 'logs')
 CASCADES_DIR = os.path.join(BASE_DIR, 'cascades')
 FONTS_DIR = os.path.join(BASE_DIR, 'fonts')
+
 USER_IMAGES_DIR = os.path.join(BASE_DIR, 'user_images')
+USER_FEATURES_DIR_NAME = 'features'
 
 OVERLAYS_DIR = os.path.join(BASE_DIR, 'overlays')
-OVERLAYS_FACE_DIR = os.path.join(OVERLAYS_DIR, 'face')
-OVERLAYS_EYES_DIR = os.path.join(OVERLAYS_DIR, 'eyes')
-OVERLAYS_MONTHS_DIR = os.path.join(OVERLAYS_DIR, 'months')
-OVERLAYS_NOSES_DIR = os.path.join(OVERLAYS_DIR, 'noses')
+
 
 DB_HOST = ''
 DB_USER = 'postgres'

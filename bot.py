@@ -34,21 +34,25 @@ def handle_message(message):
 
     user_id = get_user_id(first_name, last_name)
 
-    # make dir for draw features
-    user_dir_rects = os.path.join(USER_IMAGES_DIR, 'rects')
-    if not os.path.exists(user_dir_rects):
-        os.mkdir(user_dir_rects)
+    # make user images dir
+    user_dir = os.path.join(USER_IMAGES_DIR, '%s_%s' % (first_name, last_name))
+    if not os.path.exists(user_dir):
+        os.mkdir(user_dir)
 
+    # make draw features dir
+    user_dir_features = os.path.join(user_dir, USER_FEATURES_DIR_NAME)
+    if not os.path.exists(user_dir_features):
+        os.mkdir(user_dir_features)
+
+    # user upload photo
     if message_type == 'photo':
         # take big photo
         photo = message['photo'][-1]
-        user_dir = os.path.join(USER_IMAGES_DIR, '%s_%s' % (first_name, last_name))
 
+        # create photo
         if not photo_exists(photo['file_id']):
-            if not os.path.exists(user_dir):
-                os.mkdir(user_dir)
-
             photo_path = os.path.join(user_dir, photo['file_id'])
+
             if not os.path.exists(photo_path):
                 bot.download_file(photo['file_id'], photo_path)
 
@@ -59,18 +63,18 @@ def handle_message(message):
         file_origin = get_file_origin(photo_id)
         image = cv2.imread(file_origin)
 
-        features_list = ['Выбираем размеченную область']
-        # draw features
-        for f in get_features(photo_id):
+        # draw features on uploaded photo
+        features_list = [SELECT_FEATURE_TITLE]
+        for f in get_features():
             cv2.rectangle(image, (f.x1, f.y1), (f.x2, f.y2), f.get_color(), thickness=2)
-            features_list.append('/select %s (%s)' % (f.id, f.get_type_title()))
+            features_list.append('/select %s (%s)' % (f.id, f.type.name))
 
             log('draw rectangle: x=%s y=%s width=%s height=%s', f.x1, f.y1, f.width, f.height)
 
         bot.sendMessage(chat_id, '\n'.join(features_list))
 
         # save draw features
-        photo_rects = os.path.join(user_dir_rects, '%s_all.jpg' % photo['file_id'])
+        photo_rects = os.path.join(user_dir_features, '%s_all.jpg' % photo['file_id'])
         cv2.imwrite(photo_rects, image)
 
         # send result
@@ -81,16 +85,21 @@ def handle_message(message):
     if 'text' in message and message['text'].startswith('/'):
         parts = message['text'].split(' ')
         command = ''
-        param = ''
+        param1 = ''
+        param2 = ''
 
         if len(parts) == 1:
             command = parts[0]
 
         if len(parts) == 2:
-            command, param = parts
+            command, param1 = parts
+
+        if len(parts) == 3:
+            command, param1, param2 = parts
 
         command = command.strip().lower()
-        param = param.strip().lower()
+        param1 = param1.strip().lower()
+        param2 = param2.strip().lower()
 
         if command == '/help':
             bot.sendMessage(chat_id, BOT_HELP)
@@ -103,7 +112,7 @@ def handle_message(message):
             log('create user: first_name=%s last_name=%s username=%s', first_name, last_name, username)
 
         elif command == '/new':
-            session_name = param
+            session_name = param1
             create_session(session_name, chat_id, user_id)
             bot.sendMessage(chat_id, COMMAND_SESSION_NEW % session_name)
             bot.sendMessage(chat_id, COMMAND_SESSION_SEND_PHOTO)
@@ -112,9 +121,9 @@ def handle_message(message):
 
         elif command == '/use':
             try:
-                session_id = int(param)
+                session_id = int(param1)
             except ValueError:
-                session_id = get_session_by_name(param)
+                session_id = get_session_by_name(param1)
 
             use_session(user_id, session_id)
             bot.sendMessage(chat_id, COMMAND_SESSION_CURRENT % (get_session_name(session_id), session_id))
@@ -128,12 +137,12 @@ def handle_message(message):
         elif command == '/list':
             session_list = get_session_list(user_id)
             sessions_text = '\n'.join(['%s [%d]' % (s.name, s.id) for s in session_list])
-            bot.sendMessage(chat_id, 'Список сессий - имя [номер]\n%s' % sessions_text)
+            bot.sendMessage(chat_id, COMMAND_SESSION_LIST % sessions_text)
 
             log('session list: user_id=%s', user_id)
 
         elif command == '/select':
-            feature_id = int(param)
+            feature_id = int(param1)
             feature = get_feature(feature_id)
 
             photo_id = get_current_photo_id()
@@ -148,35 +157,51 @@ def handle_message(message):
                 thickness=2
             )
 
-            photo_rect = os.path.join(user_dir_rects, '%s_%s_%s.jpg' % (photo_id, feature_id, feature.get_type_title()))
+            photo_rect = os.path.join(user_dir_features, '%s_%s_%s.jpg' % (photo_id, feature_id, feature.type.name))
             cv2.imwrite(photo_rect, image)
 
             # send result
             with open(photo_rect) as f:
                 bot.sendPhoto(chat_id, f)
 
+        elif command == '/overlay_show':
+            pass
+
         elif command == '/overlay_list':
-            overlay_text = '''
-            noses/mustache.png
-            '''
+            response = []
+            for overlay in get_overlays():
+                response.append('%s %s' % (overlay.name, overlay.type.name))
+
+            overlay_text = '\n'.join(response)
             bot.sendMessage(chat_id, overlay_text)
 
         elif command == '/overlay':
+            feature_id = int(param1)
+            feature = get_feature(feature_id)
+
+            overlay = get_overlay_by_name(param2)
+            overlay_add(feature_id, overlay.id)
+
             photo_id = get_current_photo_id()
-            create_overlay(photo_id, param)
-
             image_path = get_file_origin(photo_id)
+            image = make_overlay(image_path, overlay.image,
+                                 feature.x1, feature.y1, feature.width, feature.height)
 
-            # image = make_overlay(image_path, overlay_path, x, y, width, height)
+            photo_overlay = os.path.join(user_dir_features, '%s_%s_%s_%s.jpg' % (
+                photo_id, feature_id, feature.type.name, param2))
+            cv2.imwrite(photo_overlay, image)
+
+            with open(photo_overlay) as f:
+                bot.sendPhoto(chat_id, f)
 
         elif command == '/show':
             pass
 
         elif command == '/close':
             try:
-                session_id = int(param)
+                session_id = int(param1)
             except ValueError:
-                session_id = get_session_by_name(param)
+                session_id = get_session_by_name(param1)
 
             close_session(session_id)
             bot.sendMessage(chat_id, COMMAND_SESSION_CLOSE % session_id)

@@ -33,7 +33,7 @@ class Photo(db.Entity):
     file_path = Optional(unicode)
     file_id = Required(unicode)
 
-    session = Required('Session')
+    sessions = Set('Session')
 
 
 STATUS_OPEN = 0
@@ -60,7 +60,7 @@ class Overlay(db.Entity):
     width = Required(int)
     height = Required(int)
 
-    type = Required('FeatureType')
+    type = Required('FeatureType', lazy=False)
     feature_overlay_list = Set('FeatureOverlay')
 
 
@@ -82,11 +82,14 @@ class Feature(db.Entity):
     width = Required(int)
     height = Required(int)
 
-    type = Required('FeatureType')
+    type = Required('FeatureType', lazy=False)
     session = Required('Session')
     parent = Optional('Feature', reverse='children')
     children = Set('Feature', reverse='parent')
     feature_overlay_list = Set('FeatureOverlay')
+
+    def get_color(self):
+        return map(int, self.type.color.split(','))
 
 
 class FeatureOverlay(db.Entity):
@@ -136,45 +139,38 @@ initial_data()
 
 
 @db_session
-def create_feature(params, feature_type, photo, parent=None):
+def create_feature(session, params, feature_type, parent=None):
     x, y, width, height = map(int, params)
+    feature = Feature.get(x1=x, y1=y, width=width, height=height)
 
-    return Feature(
-        photo=photo, type=feature_type,
-        x1=x, y1=y, x2=x + width, y2=y + height,
-        width=width, height=height,
-        parent=parent,
+    if not feature:
+        feature = Feature(
+            session=session,
+            type=feature_type,
+            x1=x, y1=y, x2=x + width, y2=y + height,
+            width=width, height=height,
+            parent=parent,
+        )
+
+    return feature
+
+
+@db_session
+def overlay_add(feature_id, overlay_id):
+    FeatureOverlay(
+        feature=Feature[feature_id],
+        overlay=Overlay[overlay_id],
     )
 
 
 @db_session
-def create_overlay(photo_id, overlay):
-    photo = Photo[photo_id]
-    overlay_dir, overlay_name = overlay.split('/')
-    overlay_path = os.path.join(OVERLAYS_DIR, overlay)
+def get_overlay_by_name(name):
+    return Overlay.get(name=name)
 
-    overlay_image = cv2.imread(overlay_path)
-    height, width, channels = overlay_image.shape
 
-    if overlay_dir == 'face':
-        overlay_type = TYPE_FACE
-    elif overlay_dir == 'eyes':
-        overlay_type = TYPE_EYE
-    elif overlay_dir == 'noses':
-        overlay_type = TYPE_NOSE
-    elif overlay_dir == 'mouths':
-        overlay_type = TYPE_MOUTH
-    else:
-        overlay_type = TYPE_UNKNOWN
-
-    Overlay(
-        photo=photo,
-        type=overlay_type,
-        name=overlay_name,
-        image=overlay_path,
-        width=width,
-        height=height
-    )
+@db_session
+def get_overlays():
+    return select(overlay for overlay in Overlay).prefetch(FeatureType)[:]
 
 
 @db_session
@@ -184,12 +180,14 @@ def photo_exists(file_id):
 
 @db_session
 def get_feature(feature_id):
-    return Feature[feature_id]
+    return select(f for f in Feature if f.id == feature_id).prefetch(FeatureType)[:][0]
 
 
 @db_session
-def get_features(photo_id):
-    return list(select(f for f in Feature if f.photo == Photo[photo_id]))
+def get_features():
+    session_id = get_current_session_id()
+
+    return select(f for f in Feature if f.session == Session[session_id]).prefetch(FeatureType)[:]
 
 
 @db_session
@@ -206,16 +204,16 @@ def create_photo(photo_path, width, height, file_id):
     session.photo = photo
 
     for person in detect_persons(photo_path):
-        parent = create_feature(person['face'], TYPE_FACE, photo)
+        parent = create_feature(session, person['face'], FeatureType.get(name='face'))
 
-        for eye in person['eyes']:
-            create_feature(eye, TYPE_EYE, photo, parent=parent)
+        for eye in person['eye']:
+            create_feature(session, eye, FeatureType.get(name='eye'), parent=parent)
 
-        for nose in person['noses']:
-            create_feature(nose, TYPE_NOSE, photo, parent=parent)
+        for nose in person['nose']:
+            create_feature(session, nose, FeatureType.get(name='nose'), parent=parent)
 
-        for mouth in person['mouths']:
-            create_feature(mouth, TYPE_MOUTH, photo, parent=parent)
+        for mouth in person['mouth']:
+            create_feature(session, mouth, FeatureType.get(name='mouth'), parent=parent)
 
 
 @db_session
@@ -236,7 +234,7 @@ def create_user(first_name, last_name, username):
         )
 
 
-# session
+# sessions
 
 @db_session
 def create_session(name, chat_id, user_id):
@@ -259,8 +257,8 @@ def use_session(user_id, session_id):
 
 
 @db_session
-def close_session(chat_id, user):
-    session = Session.get(chat_id=chat_id, user=user)
+def close_session(session_id):
+    session = Session[session_id]
     session.status = STATUS_CLOSE
 
 
@@ -284,6 +282,7 @@ def get_session_name(session_id):
 
 @db_session
 def get_current_session_id():
+    #
     return Session.get(status=STATUS_CURRENT).id
 
 
