@@ -144,28 +144,32 @@ def handle_message(message):
         elif command == '/select':
             feature_id = int(param1)
             feature = get_feature(feature_id)
-
             photo_id = get_current_photo_id()
-            file_origin = get_file_origin(photo_id)
-            image = cv2.imread(file_origin)
-
-            cv2.rectangle(
-                image,
-                (feature.x1, feature.y1),
-                (feature.x2, feature.y2),
-                feature.get_color(),
-                thickness=2
-            )
-
             photo_rect = os.path.join(user_dir_features, '%s_%s_%s.jpg' % (photo_id, feature_id, feature.type.name))
-            cv2.imwrite(photo_rect, image)
+
+            if not os.path.exists(photo_rect):
+                file_origin = get_file_origin(photo_id)
+                image = cv2.imread(file_origin)
+
+                cv2.rectangle(
+                    image,
+                    (feature.x1, feature.y1),
+                    (feature.x2, feature.y2),
+                    feature.get_color(),
+                    thickness=2
+                )
+
+                cv2.imwrite(photo_rect, image)
 
             # send result
             with open(photo_rect) as f:
                 bot.sendPhoto(chat_id, f)
 
         elif command == '/overlay_show':
-            pass
+            overlay = get_overlay_by_name(param1)
+
+            with open(overlay.image) as f:
+                bot.sendPhoto(chat_id, f)
 
         elif command == '/overlay_list':
             response = []
@@ -178,18 +182,20 @@ def handle_message(message):
         elif command == '/overlay':
             feature_id = int(param1)
             feature = get_feature(feature_id)
-
             overlay = get_overlay_by_name(param2)
-            overlay_add(feature_id, overlay.id)
-
             photo_id = get_current_photo_id()
-            image_path = get_file_origin(photo_id)
-            image = make_overlay(image_path, overlay.image,
-                                 feature.x1, feature.y1, feature.width, feature.height)
 
-            photo_overlay = os.path.join(user_dir_features, '%s_%s_%s_%s.jpg' % (
-                photo_id, feature_id, feature.type.name, param2))
-            cv2.imwrite(photo_overlay, image)
+            photo_overlay_name = '%s_%s_%s_%s.jpg' % (photo_id, feature_id, feature.type.name, param2)
+            photo_overlay = os.path.join(user_dir_features, photo_overlay_name)
+
+            if not os.path.exists(photo_overlay):
+                overlay_add(feature_id, overlay.id)
+
+                image_path = get_file_origin(photo_id)
+                feature_params = feature.x1, feature.y1, feature.width, feature.height
+                image = make_overlay(image_path, overlay.image, *feature_params)
+
+                cv2.imwrite(photo_overlay, image)
 
             with open(photo_overlay) as f:
                 bot.sendPhoto(chat_id, f)
@@ -212,23 +218,6 @@ def handle_message(message):
             log('command unknown: message=%s', message)
             bot.sendMessage(chat_id, COMMAND_UNKNOWN)
 
-    # show_keyboard = {'keyboard': [['Yes', 'No'], ['Maybe', 'Maybe not']]}
-    # bot.sendMessage(999999999, 'This is a custom keyboard', reply_markup=show_keyboard)
 
-
-
-    # keyboard handle
-    # flavor = telepot.flavor(msg)
-    #
-    # if flavor == 'chat':
-    #     print ('Chat message')
-    # elif flavor == 'callback_query':
-    #     print ('Callback query')
-
-
-
-
-
-
-log('start bot')
+log('start bot...')
 bot.message_loop(handle_message, run_forever=True)

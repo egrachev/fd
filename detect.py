@@ -105,14 +105,4 @@ def detect_persons(image_path):
     log('detect persons: count=%s', len(result))
     return result
 
-# img = cv2.imread(os.path.join(USER_IMAGES_DIR, 'test1.jpg'))
-# person_list = detect_persons(img)
-# p = person_list[0]
-# overlay_img = cv2.imread(os.path.join(OVERLAYS_NOSES_DIR, 'mustache.png'))
-# p.draw_nose(img, overlay_img)
-#
-# cv2.namedWindow('img', cv2.WINDOW_NORMAL)
-# cv2.imshow('img', img)
-#
-# cv2.waitKey(0)
-# cv2.destroyAllWindows()
+

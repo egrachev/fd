@@ -157,10 +157,11 @@ def create_feature(session, params, feature_type, parent=None):
 
 @db_session
 def overlay_add(feature_id, overlay_id):
-    FeatureOverlay(
-        feature=Feature[feature_id],
-        overlay=Overlay[overlay_id],
-    )
+    if not FeatureOverlay.get(feature=Feature[feature_id], overlay=Overlay[overlay_id]):
+        FeatureOverlay(
+            feature=Feature[feature_id],
+            overlay=Overlay[overlay_id],
+        )
 
 
 @db_session
