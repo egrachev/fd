@@ -83,23 +83,10 @@ def handle_message(message):
 
     # handle commands
     if 'text' in message and message['text'].startswith('/'):
-        parts = message['text'].split(' ')
-        command = ''
-        param1 = ''
-        param2 = ''
-
-        if len(parts) == 1:
-            command = parts[0]
-
-        if len(parts) == 2:
-            command, param1 = parts
-
-        if len(parts) == 3:
-            command, param1, param2 = parts
+        command, sep, param = message['text'].partition(' ')
 
         command = command.strip().lower()
-        param1 = param1.strip().lower()
-        param2 = param2.strip().lower()
+        param = param.strip().lower()
 
         if command == '/help':
             bot.sendMessage(chat_id, BOT_HELP)
@@ -112,7 +99,7 @@ def handle_message(message):
             log('create user: first_name=%s last_name=%s username=%s', first_name, last_name, username)
 
         elif command == '/new':
-            session_name = param1
+            session_name = param
             create_session(session_name, chat_id, user_id)
             bot.sendMessage(chat_id, COMMAND_SESSION_NEW % session_name)
             bot.sendMessage(chat_id, COMMAND_SESSION_SEND_PHOTO)
@@ -121,9 +108,9 @@ def handle_message(message):
 
         elif command == '/use':
             try:
-                session_id = int(param1)
+                session_id = int(param)
             except ValueError:
-                session_id = get_session_by_name(param1)
+                session_id = get_session_by_name(param)
 
             use_session(user_id, session_id)
             bot.sendMessage(chat_id, COMMAND_SESSION_CURRENT % (get_session_name(session_id), session_id))
@@ -142,10 +129,21 @@ def handle_message(message):
             log('session list: user_id=%s', user_id)
 
         elif command == '/select':
-            feature_id = int(param1)
+            try:
+                feature_id = int(param)
+            except ValueError:
+                bot.sendMessage(chat_id, COMMAND_BAD_PARAMS)
+                return
+
             feature = get_feature(feature_id)
+            if not feature:
+                bot.sendMessage(chat_id, COMMAND_BAD_FEATURE)
+                return
+
             photo_id = get_current_photo_id(user_id)
             photo_rect = os.path.join(user_dir_features, '%s_%s_%s.jpg' % (photo_id, feature_id, feature.type.name))
+
+            log('select feature: user_id=%s photo_id=%s feature_id=%s', user_id, photo_id, feature_id)
 
             if not os.path.exists(photo_rect):
                 file_origin = get_file_origin(photo_id)
@@ -160,42 +158,93 @@ def handle_message(message):
                 )
 
                 cv2.imwrite(photo_rect, image)
+                log('select feature: save photo=%s', photo_rect)
 
             # send result
             with open(photo_rect) as f:
                 bot.sendPhoto(chat_id, f)
 
         elif command == '/overlay_show':
-            overlay = get_overlay_by_name(param1)
+            overlay = get_overlay_by_name(param)
+            log('overlay show: name=%s', param)
+
+            if not overlay:
+                bot.sendMessage(chat_id, COMMAND_BAD_OVERLAY)
+                return
 
             with open(overlay.image) as f:
                 bot.sendPhoto(chat_id, f)
 
         elif command == '/overlay_list':
             response = []
-            for overlay in get_overlays():
+            overlays = get_overlays()
+
+            for overlay in overlays:
                 response.append('%s %s' % (overlay.name, overlay.type.name))
+
+            log('overlay list: count=%s', len(overlays))
 
             overlay_text = '\n'.join(response)
             bot.sendMessage(chat_id, overlay_text)
 
+        elif command == '/pos_list':
+            log('post list')
+            bot.sendMessage(chat_id, COMMAND_POS_LIST)
+
         elif command == '/overlay':
-            feature_id = int(param1)
+            # /overlay <feature_id> <overlay_name> [<position> [<scale>]]
+
+            feature_id, sep, rest = param.partition(' ')
+            try:
+                feature_id = int(feature_id)
+            except ValueError:
+                bot.sendMessage(chat_id, COMMAND_BAD_PARAMS)
+                return
+
             feature = get_feature(feature_id)
-            overlay = get_overlay_by_name(param2)
+            if not feature:
+                bot.sendMessage(chat_id, COMMAND_BAD_FEATURE)
+                return
+
+            overlay_name, sep, rest = rest.partition(' ')
+            overlay = get_overlay_by_name(overlay_name)
+            if not overlay:
+                bot.sendMessage(chat_id, COMMAND_BAD_OVERLAY)
+
+            position, sep, rest = rest.partition(' ')
+            try:
+                position = int(position)
+            except ValueError:
+                position = POSITION_CENTER
+
+            scale, sep, rest = rest.partition(' ')
+            try:
+                scale = float(scale)
+            except ValueError:
+                scale = 1.0
+
             photo_id = get_current_photo_id(user_id)
 
-            photo_overlay_name = '%s_%s_%s_%s.jpg' % (photo_id, feature_id, feature.type.name, param2)
+            log('overlay: photo_id=%s feature_id=%s overlay_name=%s position=%s scale=%s',
+                photo_id, feature_id, overlay_name, position, scale)
+
+            photo_template = 'photo%s_feature%s_type_%s_overlay%s_pos%s_scale_%s.jpg'
+            photo_overlay_name = photo_template % (
+                photo_id, feature_id, feature.type.name, overlay_name, position, scale)
             photo_overlay = os.path.join(user_dir_features, photo_overlay_name)
 
             if not os.path.exists(photo_overlay):
-                overlay_add(feature_id, overlay.id)
+                overlay_add(feature_id, overlay.id, position, scale)
 
                 image_path = get_file_origin(photo_id)
-                feature_params = feature.x1, feature.y1, feature.width, feature.height
-                image = make_overlay(image_path, overlay.image, *feature_params)
+                image = make_overlay(
+                    image_path, overlay.image,
+                    feature.x1, feature.y1, feature.width, feature.height,
+                    position, scale
+                )
 
                 cv2.imwrite(photo_overlay, image)
+                log('overlay: save overlay=%s', photo_overlay)
 
             with open(photo_overlay) as f:
                 bot.sendPhoto(chat_id, f)
@@ -207,23 +256,29 @@ def handle_message(message):
             image_path = get_file_origin(photo_id)
 
             for i, fo in enumerate(get_features_overlays(user_id)):
-                feature_params = fo.feature.x1, fo.feature.y1, fo.feature.width, fo.feature.height
-
                 if not i:
-                    image = make_overlay(image_path, fo.overlay.image, *feature_params)
+                    path = image_path
                 else:
-                    image = make_overlay(photo_show, fo.overlay.image, *feature_params)
+                    path = photo_show
+
+                image = make_overlay(
+                    path, fo.overlay.image,
+                    fo.feature.x1, fo.feature.y1, fo.feature.width, fo.feature.height,
+                    fo.position, fo.scale
+                )
 
                 cv2.imwrite(photo_show, image)
+
+            log('show: photo=%s', photo_show)
 
             with open(photo_show) as f:
                 bot.sendPhoto(chat_id, f)
 
         elif command == '/close':
             try:
-                session_id = int(param1)
+                session_id = int(param)
             except ValueError:
-                session_id = get_session_by_name(param1)
+                session_id = get_session_by_name(param)
 
             close_session(session_id)
             bot.sendMessage(chat_id, COMMAND_SESSION_CLOSE % session_id)

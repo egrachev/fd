@@ -36,11 +36,6 @@ class Photo(db.Entity):
     sessions = Set('Session')
 
 
-STATUS_OPEN = 0
-STATUS_CLOSE = 1
-STATUS_CURRENT = 2
-
-
 class Session(db.Entity):
     date_create = Required(datetime, sql_default='CURRENT_TIMESTAMP')
     name = Required(unicode, unique=True)
@@ -92,18 +87,10 @@ class Feature(db.Entity):
         return map(int, self.type.color.split(','))
 
 
-POSITION_UPPER_TOP = 0
-POSITION_TOP = 1
-POSITION_CENTER = 2
-POSITION_BOTTOM = 3
-POSITION_LOWER_BOTTOM = 4
-POSITION_LEFT = 5
-POSITION_RIGHT = 6
-
-
 class FeatureOverlay(db.Entity):
     feature = Required('Feature')
     overlay = Required('Overlay')
+
     position = Required(int, default=POSITION_CENTER)
     scale = Required(float, default=1.0)
 
@@ -169,11 +156,13 @@ def create_feature(session, params, feature_type, parent=None):
 
 
 @db_session
-def overlay_add(feature_id, overlay_id):
+def overlay_add(feature_id, overlay_id, position, scale):
     if not FeatureOverlay.get(feature=Feature[feature_id], overlay=Overlay[overlay_id]):
         FeatureOverlay(
             feature=Feature[feature_id],
             overlay=Overlay[overlay_id],
+            position=position,
+            scale=scale,
         )
 
 

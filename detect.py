@@ -5,7 +5,7 @@ import logging
 import cv2
 
 from config import *
-from db import *
+
 
 log = logging.getLogger('detect').debug
 
@@ -16,16 +16,17 @@ cascades = {
     'nose': 'cascades/haarcascade_mcs_nose.xml',
 }
 
-FEATURE_SCALE = 1.3
-FEATURE_MIN_NEIGHBORS = 10
 
-
-def resize_overlay(overlay_path, width):
+def resize_overlay(overlay_path, feature_width, scale):
+    """
+    make overlay size to feature size and scale after
+    """
     overlay = cv2.imread(overlay_path)
     overlay_height, overlay_width, channels = overlay.shape
 
-    ratio = float(width) / overlay_width
-    height = int(overlay_height * ratio)
+    ratio = float(feature_width) / overlay_width
+    width = int(overlay_width * ratio * scale)
+    height = int(overlay_height * ratio * scale)
 
     result = cv2.resize(overlay, (width, height), interpolation=cv2.INTER_AREA)
 
@@ -33,14 +34,38 @@ def resize_overlay(overlay_path, width):
     return result
 
 
-def make_overlay(image_path, overlay_path, x, y, width, height):
-    overlay_resized = resize_overlay(overlay_path, width)
+def make_overlay(image_path, overlay_path, x, y, width, height, position=POSITION_CENTER, scale=1.0):
+    overlay_resized = resize_overlay(overlay_path, width, scale)
     overlay_height, overlay_width, channels = overlay_resized.shape
+    offset = int((width - width * scale) / 2)
 
-    # center
-    roi_x = x + abs(width - overlay_width) / 2
-    # roi_y1 = y + abs(height - overlay_height) / 2
-    roi_y = y + height - overlay_height
+    # POSITION_CENTER by default
+    roi_x = x + offset
+    roi_y = y + (height - overlay_height) / 2
+
+    if position == POSITION_UPPER_TOP:
+        roi_x = x + offset
+        roi_y = y - overlay_height
+
+    elif position == POSITION_TOP:
+        roi_x = x + offset
+        roi_y = y
+
+    elif position == POSITION_BOTTOM:
+        roi_x = x + offset
+        roi_y = y + height - overlay_height
+
+    elif position == POSITION_LOWER_BOTTOM:
+        roi_x = x + offset
+        roi_y = y + height
+
+    elif position == POSITION_LEFT:
+        roi_x = x - overlay_width
+        roi_y = y + (height - overlay_height) / 2
+
+    elif position == POSITION_RIGHT:
+        roi_x = x + width
+        roi_y = y + (height - overlay_height) / 2
 
     image = cv2.imread(image_path)
     roi = image[roi_y:roi_y + overlay_height, roi_x:roi_x + overlay_width]
