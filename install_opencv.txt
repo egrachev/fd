@@ -1,0 +1,64 @@
+*** install opencv ***
+
+sudo apt-get install build-essential cmake git pkg-config
+sudo apt-get install libjpeg8-dev libjasper-dev libpng12-dev
+sudo apt-get install libgtk2.0-dev
+sudo apt-get install libavcodec-dev libavformat-dev libswscale-dev libv4l-dev
+sudo apt-get install libatlas-base-dev gfortran
+sudo apt-get install python2.7-dev
+sudo apt-get install libgphoto2-dev
+sudo apt-get install libhdf5-dev
+
+
+/*
+sudo apt-get install libprotobuf-dev libleveldb-dev libsnappy-dev libopencv-dev libhdf5-serial-dev protobuf-compiler
+*/
+
+pip install numpy
+
+cd tmp
+
+git clone https://github.com/Itseez/opencv.git
+cd opencv
+git checkout 3.1.0
+
+git clone https://github.com/Itseez/opencv_contrib.git
+cd opencv_contrib
+git checkout 3.1.0
+
+cd opencv
+mkdir build
+cd build
+
+cmake -D CMAKE_BUILD_TYPE=RELEASE \
+    -D CMAKE_INSTALL_PREFIX=/usr/local \
+    -D INSTALL_C_EXAMPLES=OFF \
+    -D INSTALL_PYTHON_EXAMPLES=ON \
+    -D OPENCV_EXTRA_MODULES_PATH=~/tmp/opencv_contrib/modules \
+    -D BUILD_EXAMPLES=ON ..
+
+
+pip install h5py
+cd /usr/lib/x86_64-linux-gnu
+sudo ln -s libhdf5_serial.so.10.1.0 libhdf5.so
+sudo ln -s libhdf5_serial_hl.so.10.0.2 libhdf5_hl.so
+
+pip install scipy
+
+I had to modify the file /opencv_contrib-3.1.0/modules/hdf/include/opencv2/hdf/hdf5.hpp in line 40:
+
+--- #include
++++ #include "/usr/include/hdf5/serial/hdf5.h"
+
+make -j4
+sudo make install
+sudo ldconfig
+
+
+$ cd ~/.virtualenvs/cv/lib/python2.7/site-packages/
+$ ln -s /usr/local/lib/python2.7/site-packages/cv2.so cv2.so
+
+
+postgres install
+sudo apt-get install libpq-dev python-dev
+sudo pip install psycopg2
