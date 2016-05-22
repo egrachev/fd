@@ -92,9 +92,20 @@ class Feature(db.Entity):
         return map(int, self.type.color.split(','))
 
 
+POSITION_UPPER_TOP = 0
+POSITION_TOP = 1
+POSITION_CENTER = 2
+POSITION_BOTTOM = 3
+POSITION_LOWER_BOTTOM = 4
+POSITION_LEFT = 5
+POSITION_RIGHT = 6
+
+
 class FeatureOverlay(db.Entity):
     feature = Required('Feature')
     overlay = Required('Overlay')
+    position = Required(int, default=POSITION_CENTER)
+    scale = Required(float, default=1.0)
 
 
 db.bind('postgres', user=DB_USER, password=DB_PASS, host=DB_HOST, database=DB_NAME)
@@ -107,6 +118,7 @@ def initial_data():
         feature_types = {
             'face': FeatureType(name='face', color='255,0,0'),
             'eye': FeatureType(name='eye', color='0,255,0'),
+            'eyes': FeatureType(name='eyes', color='0,0,0'),
             'nose': FeatureType(name='nose', color='0,255,255'),
             'mouth': FeatureType(name='mouth', color='0,0,255'),
         }
@@ -114,6 +126,7 @@ def initial_data():
         feature_types = {
             'face': FeatureType.get(name='face', color='255,0,0'),
             'eye': FeatureType.get(name='eye', color='0,255,0'),
+            'eyes': FeatureType.get(name='eyes', color='0,0,0'),
             'nose': FeatureType.get(name='nose', color='0,255,255'),
             'mouth': FeatureType.get(name='mouth', color='0,0,255'),
         }
@@ -211,11 +224,28 @@ def create_photo(photo_path, width, height, file_id):
 
     session.photo = photo
 
-    for person in detect_persons(photo_path):
+    persons = detect_persons(photo_path)
+
+    for person in persons:
         parent = create_feature(session, person['face'], FeatureType.get(name='face'))
 
         for eye in person['eye']:
             create_feature(session, eye, FeatureType.get(name='eye'), parent=parent)
+
+        # make feature eyes
+        eyes = person['eye'][:2]
+        if len(eyes) == 2:
+            x1, y1, width1, height1 = map(int, eyes[0])
+            x2, y2, width2, height2 = map(int, eyes[1])
+
+            eyes_params = (
+                min(x1, x2),
+                min(y1, y2),
+                max(x1 + width1, x2 + width2) - min(x1, x2),
+                max(y1 + height1, y2 + height2) - min(y1, y2),
+            )
+
+            create_feature(session, eyes_params, FeatureType.get(name='eyes'), parent=parent)
 
         for nose in person['nose']:
             create_feature(session, nose, FeatureType.get(name='nose'), parent=parent)
