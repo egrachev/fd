@@ -107,6 +107,7 @@ def initial_data():
             'eye': FeatureType(name='eye', color='0,255,0'),
             'eyes': FeatureType(name='eyes', color='0,0,0'),
             'nose': FeatureType(name='nose', color='0,255,255'),
+            'mustache': FeatureType(name='mustache', color='255,255,255'),
             'mouth': FeatureType(name='mouth', color='0,0,255'),
         }
     else:
@@ -115,6 +116,7 @@ def initial_data():
             'eye': FeatureType.get(name='eye', color='0,255,0'),
             'eyes': FeatureType.get(name='eyes', color='0,0,0'),
             'nose': FeatureType.get(name='nose', color='0,255,255'),
+            'mustache': FeatureType.get(name='mustache', color='255,255,255'),
             'mouth': FeatureType.get(name='mouth', color='0,0,255'),
         }
 
@@ -157,13 +159,17 @@ def create_feature(session, params, feature_type, parent=None):
 
 @db_session
 def overlay_add(feature_id, overlay_id, position, scale):
-    if not FeatureOverlay.get(feature=Feature[feature_id], overlay=Overlay[overlay_id]):
+    feature = FeatureOverlay.get(feature=Feature[feature_id], overlay=Overlay[overlay_id])
+    if not feature:
         FeatureOverlay(
             feature=Feature[feature_id],
             overlay=Overlay[overlay_id],
             position=position,
             scale=scale,
         )
+    else:
+        feature.position = position
+        feature.scale = scale
 
 
 @db_session
@@ -237,7 +243,11 @@ def create_photo(photo_path, width, height, file_id):
             create_feature(session, eyes_params, FeatureType.get(name='eyes'), parent=parent)
 
         for nose in person['nose']:
+            x, y, width, height = map(int, nose)
             create_feature(session, nose, FeatureType.get(name='nose'), parent=parent)
+
+            create_feature(session, (x, y + int(2.0/3 * height), width, height),
+                           FeatureType.get(name='mustache'), parent=parent)
 
         for mouth in person['mouth']:
             create_feature(session, mouth, FeatureType.get(name='mouth'), parent=parent)
@@ -314,7 +324,10 @@ def get_current_session_id(user_id):
 
 @db_session
 def get_session_by_name(name):
-    return Session.get(name=name).id
+    session = Session.get(name=name)
+
+    if session:
+        return session.id
 
 
 @db_session

@@ -4,6 +4,8 @@ from __future__ import unicode_literals
 
 COMMAND_SESSION_SEND_PHOTO = 'Загрузите фотографию с лицом'
 COMMAND_SESSION_NEW = 'Создана новая сессия %s'
+COMMAND_SESSION_NOT_FOUND = 'Сессия не найдена'
+COMMAND_SESSION_LIST_EMPTY = 'Список сессий пуст. \nЧтобы создать новую сессию используте /new <session_name>'
 COMMAND_UNKNOWN = 'Такой команды не существует'
 COMMAND_BAD_PARAMS = 'Параметры заданы неверно'
 COMMAND_BAD_FEATURE = 'Признак задан неверно'

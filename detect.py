@@ -72,7 +72,7 @@ def make_overlay(image_path, overlay_path, x, y, width, height, position=POSITIO
 
     # Now create a mask of logo and create its inverse mask also
     overlay_gray = cv2.cvtColor(overlay_resized, cv2.COLOR_BGR2GRAY)
-    ret, mask = cv2.threshold(overlay_gray, 10, 255, cv2.THRESH_BINARY)
+    ret, mask = cv2.threshold(overlay_gray, 230, 255, cv2.THRESH_BINARY)
     mask_inv = cv2.bitwise_not(mask)
 
     # Now black-out the area of logo in ROI

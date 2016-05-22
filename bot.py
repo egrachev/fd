@@ -112,6 +112,10 @@ def handle_message(message):
             except ValueError:
                 session_id = get_session_by_name(param)
 
+            if not session_id:
+                bot.sendMessage(chat_id, COMMAND_SESSION_NOT_FOUND)
+                return
+
             use_session(user_id, session_id)
             bot.sendMessage(chat_id, COMMAND_SESSION_CURRENT % (get_session_name(session_id), session_id))
 
@@ -123,8 +127,12 @@ def handle_message(message):
 
         elif command == '/list':
             session_list = get_session_list(user_id)
-            sessions_text = '\n'.join(['%s [%d]' % (s.name, s.id) for s in session_list])
-            bot.sendMessage(chat_id, COMMAND_SESSION_LIST % sessions_text)
+
+            if session_list:
+                sessions_text = '\n'.join(['%s [%d]' % (s.name, s.id) for s in session_list])
+                bot.sendMessage(chat_id, COMMAND_SESSION_LIST % sessions_text)
+            else:
+                bot.sendMessage(chat_id, COMMAND_SESSION_LIST_EMPTY)
 
             log('session list: user_id=%s', user_id)
 
@@ -180,7 +188,7 @@ def handle_message(message):
             overlays = get_overlays()
 
             for overlay in overlays:
-                response.append('%s %s' % (overlay.name, overlay.type.name))
+                response.append('%s (%s)' % (overlay.name, overlay.type.name))
 
             log('overlay list: count=%s', len(overlays))
 
