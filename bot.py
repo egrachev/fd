@@ -28,14 +28,15 @@ def handle_message(message):
     message_type, chat_type, chat_id = telepot.glance(message)
     log('receive message: message_type=%s chat_type=%s chat_id=%s', message_type, chat_type, chat_id)
 
-    first_name = message['chat']['first_name']
-    last_name = message['chat']['last_name']
-    username = message['chat']['username']
+    first_name = message['chat'].get('first_name', '')
+    last_name = message['chat'].get('last_name', '')
+    username = message['chat'].get('username', '')
 
     user_id = get_user_id(first_name, last_name)
+    user_params = str(chat_id), first_name, last_name
 
     # make user images dir
-    user_dir = os.path.join(USER_IMAGES_DIR, '%s_%s' % (first_name, last_name))
+    user_dir = os.path.join(USER_IMAGES_DIR, '_'.join(user_params))
     if not os.path.exists(user_dir):
         os.mkdir(user_dir)
 
@@ -223,7 +224,7 @@ def handle_message(message):
             try:
                 position = int(position)
             except ValueError:
-                position = POSITION_CENTER
+                position = POSITION_ALIASES.get(position, POSITION_CENTER)
 
             scale, sep, rest = rest.partition(' ')
             try:
